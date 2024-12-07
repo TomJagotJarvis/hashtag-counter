@@ -1,123 +1,161 @@
-<!-- claude -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Instagram Hashtag Counter</title>
+    <title>Advanced Image EXIF Data Reader</title>
+    <script src="https://cdn.jsdelivr.net/npm/exif-js@2.3.0/exif.min.js"></script>
     <style>
         body {
-            font-family: system-ui, -apple-system, sans-serif;
+            font-family: Arial, sans-serif;
             max-width: 600px;
-            margin: 2rem auto;
-            padding: 0 1rem;
-            background-color: #f5f5f5;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
         }
-        .container {
-            background-color: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        #url-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px;
         }
-        h1 {
-            color: #1a1a1a;
-            margin-bottom: 1.5rem;
+        #submit-btn {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
         }
-        textarea {
-            width: calc(100% - 2rem);
-            height: 200px;
-            padding: 1rem;
-            margin-bottom: 1rem;
-            border: 2px solid #e1e1e1;
-            border-radius: 4px;
-            font-size: 1rem;
-            resize: vertical;
+        #exif-results {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            background-color: #f9f9f9;
         }
-        .result {
-            font-size: 1.25rem;
-            padding: 1rem;
-            border-radius: 4px;
-            background-color: #f8f9fa;
-            margin-top: 1rem;
+        .error {
+            color: red;
         }
-        .warning {
-            color: #dc3545;
-            font-weight: bold;
-        }
-        .safe {
-            color: #28a745;
-        }
-        .duplicate-list {
-            font-size: 1rem;
-            margin-top: 0.5rem;
-            color: #dc3545;
+        #loading {
+            display: none;
+            color: #666;
+            margin-top: 10px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Instagram Hashtag Counter</h1>
-        <p>Paste your Instagram hashtags below to count them. Instagram allows a maximum of 30 hashtags per post.</p>
-        <textarea id="hashtagInput" placeholder="Paste your hashtags here (e.g., #nature #photography #instagram)"></textarea>
-        <div class="result">
-            Number of hashtags: <span id="count">0</span>
-            <div id="status"></div>
-            <div id="duplicates" class="duplicate-list"></div>
-        </div>
-    </div>
+    <h1>Advanced Image EXIF Data Reader</h1>
+    <input type="text" id="url-input" placeholder="Enter image URL">
+    <button id="submit-btn">Get EXIF Data</button>
+    <div id="loading">Fetching EXIF data...</div>
+    <div id="exif-results"></div>
 
     <script>
-        const textarea = document.getElementById('hashtagInput');
-        const countDisplay = document.getElementById('count');
-        const statusDisplay = document.getElementById('status');
-        const duplicatesDisplay = document.getElementById('duplicates');
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlInput = document.getElementById('url-input');
+            const submitBtn = document.getElementById('submit-btn');
+            const exifResults = document.getElementById('exif-results');
+            const loadingIndicator = document.getElementById('loading');
 
-        function findDuplicateHashtags(text) {
-            const hashtags = text.match(/#[\w\u0590-\u05ff]+/g) || [];
-            const hashtagCounts = {};
-            const duplicates = [];
+            // Function to extract lens information from undefined tags
+            function extractLensInfo(metaData) {
+                let lensInfo = null;
+                
+                // Look for lens information in undefined tags
+                Object.entries(metaData).forEach(([key, value]) => {
+                    if (key === 'undefined' && typeof value === 'string' && value.includes('Summilux')) {
+                        lensInfo = value;
+                    }
+                });
 
-            hashtags.forEach(hashtag => {
-                hashtagCounts[hashtag] = (hashtagCounts[hashtag] || 0) + 1;
-                if (hashtagCounts[hashtag] === 2) {
-                    duplicates.push(hashtag);
+                return lensInfo;
+            }
+
+            submitBtn.addEventListener('click', async () => {
+                const imageUrl = urlInput.value.trim();
+                if (!imageUrl) {
+                    exifResults.innerHTML = '<p class="error">Please enter an image URL</p>';
+                    return;
+                }
+
+                // Show loading indicator
+                loadingIndicator.style.display = 'block';
+                exifResults.innerHTML = '';
+
+                try {
+                    // Create a cross-origin enabled image
+                    const img = new Image();
+                    img.crossOrigin = 'Anonymous'; // This is key for CORS
+                    
+                    img.onload = function() {
+                        try {
+                            // Hide loading indicator
+                            loadingIndicator.style.display = 'none';
+
+                            EXIF.getData(img, function() {
+                                const allMetaData = EXIF.getAllTags(this);
+                                
+                                // Extract lens information
+                                const lensInfo = extractLensInfo(allMetaData);
+
+                                // Check if we have any EXIF data
+                                if (Object.keys(allMetaData).length === 0) {
+                                    exifResults.innerHTML = '<p class="error">No EXIF data found</p>';
+                                    return;
+                                }
+
+                                // Create detailed EXIF results HTML
+                                let exifHTML = '<h2>Detailed EXIF Data:</h2>';
+                                
+                                // Lens Details (Prominently Displayed)
+                                exifHTML += '<h3>Lens Details:</h3>';
+                                if (lensInfo) {
+                                    exifHTML += `<p><strong>Lens:</strong> ${lensInfo}</p>`;
+                                }
+                                
+                                // Camera Details
+                                exifHTML += '<h3>Camera Details:</h3>';
+                                exifHTML += `<p><strong>Make:</strong> ${allMetaData.Make || 'Unknown'}</p>`;
+                                exifHTML += `<p><strong>Model:</strong> ${allMetaData.Model || 'Unknown'}</p>`;
+                                
+                                // Additional Lens Technical Details
+                                exifHTML += `<p><strong>Focal Length:</strong> ${allMetaData.FocalLength || 'Unknown'}</p>`;
+                                exifHTML += `<p><strong>Aperture:</strong> ${allMetaData.FNumber ? `f/${allMetaData.FNumber}` : 'Unknown'}</p>`;
+                                
+                                // Additional Useful Info
+                                exifHTML += '<h3>Additional Information:</h3>';
+                                exifHTML += `<p><strong>Date Taken:</strong> ${allMetaData.DateTimeOriginal || 'Unknown'}</p>`;
+                                exifHTML += `<p><strong>ISO:</strong> ${allMetaData.ISOSpeedRatings || 'Unknown'}</p>`;
+                                exifHTML += `<p><strong>Exposure Time:</strong> ${allMetaData.ExposureTime ? `1/${Math.round(1/allMetaData.ExposureTime)}s` : 'Unknown'}</p>`;
+
+                                // Raw EXIF Data for debugging
+                                exifHTML += '<h3>Raw EXIF Data:</h3>';
+                                exifHTML += `<pre>${JSON.stringify(allMetaData, null, 2)}</pre>`;
+
+                                exifResults.innerHTML = exifHTML;
+                            });
+                        } catch (error) {
+                            loadingIndicator.style.display = 'none';
+                            exifResults.innerHTML = `<p class="error">Error processing image: ${error.message}</p>`;
+                        }
+                    };
+
+                    img.onerror = () => {
+                        loadingIndicator.style.display = 'none';
+                        exifResults.innerHTML = `<p class="error">Failed to load image. Possible reasons:
+                            <br>- Image URL is incorrect
+                            <br>- Image server does not allow cross-origin requests
+                            <br>- Network connectivity issue</p>`;
+                    };
+
+                    // Set the image source last
+                    img.src = imageUrl;
+
+                } catch (error) {
+                    // Hide loading indicator
+                    loadingIndicator.style.display = 'none';
+                    
+                    exifResults.innerHTML = `<p class="error">Error: ${error.message}</p>`;
                 }
             });
-
-            return duplicates;
-        }
-
-        function updateCount() {
-            const text = textarea.value;
-            const hashtags = text.match(/#[\w\u0590-\u05ff]+/g) || [];
-            const count = hashtags.length;
-            countDisplay.textContent = count;
-
-            // Update hashtag count status
-            if (count > 30) {
-                statusDisplay.className = 'warning';
-                statusDisplay.textContent = `You are ${count - 30} hashtags over the Instagram limit!`;
-            } else if (count === 30) {
-                statusDisplay.className = 'warning';
-                statusDisplay.textContent = 'You have reached the maximum limit!';
-            } else {
-                statusDisplay.className = 'safe';
-                statusDisplay.textContent = `You can add ${30 - count} more hashtags.`;
-            }
-
-            // Check for duplicates
-            const duplicates = findDuplicateHashtags(text);
-            if (duplicates.length > 0) {
-                duplicatesDisplay.innerHTML = `
-                    <strong>Warning: Found ${duplicates.length} duplicate hashtag${duplicates.length > 1 ? 's' : ''}:</strong><br>
-                    ${duplicates.join(', ')}
-                `;
-            } else {
-                duplicatesDisplay.innerHTML = '<span class="safe">No duplicate hashtags found</span>';
-            }
-        }
-
-        textarea.addEventListener('input', updateCount);
+        });
     </script>
 </body>
 </html>
